@@ -2,12 +2,13 @@
 
 import logging
 
+from django.contrib.auth import authenticate, login, logout
 from collections import OrderedDict
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotFound
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import viewsets, mixins, generics, status
+from rest_framework import views, viewsets, mixins, generics, status
 from rest_framework.response import Response
-from rest_framework.permissions import IsAdminUser, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 
 from journals.apps.api.filters import JournalAccessFilter, UserPageVisitFilter
 from journals.apps.api.pagination import LargeResultsSetPagination
@@ -18,6 +19,64 @@ from journals.apps.journals.models import Journal, JournalAccess, UserPageVisit
 
 
 logger = logging.getLogger(__name__)
+
+
+class UserAccountView(views.APIView):
+    """
+    API to create users, login and logout
+    """
+    permission_classes = (AllowAny, )
+
+    def post(self, request, *args, **kwargs):
+        """create a user entry and log them in"""
+        logout_only = request.data.get('logout')
+        login_only = request.data.get('login')
+        username = request.data.get('username')
+        email = request.data.get('email')
+        password = request.data.get('password')
+
+        if logout_only:
+            return self._handle_logout(request)
+
+        if login_only:
+            return self._handle_login(request, username, password)
+
+        try:
+            User.objects.create_user(username=username, email=email, password=password)
+            return self._handle_login(request, username, password)
+        except Exception as err:
+            message = "Could not create user={} err={}".format(username, err)
+            logger.error(message)
+            return HttpResponseBadRequest(message)
+
+    def _handle_login(self, request, username, password):
+        try:
+            authed_user = authenticate(request, username=username, password=password)
+            login(request, authed_user)
+            return Response({
+                # 'user': UserSerializer(user).data,
+                'username': UserSerializer(authed_user).data.get('username'),
+                'email': UserSerializer(authed_user).data.get('email'),
+                'is_authenticated': bool(authed_user.is_authenticated),
+            })
+        except Exception as err:
+            message = "Login failed username={} err={}".format(username, err)
+            logger.error(message)
+            return HttpResponseBadRequest(message)
+
+    def _handle_logout(self, request):
+        try:
+            logout(request)
+            return Response({
+                # 'user': UserSerializer(user).data,
+                'username': '',
+                'email': '',
+                'is_authenticated': False,
+            })
+        except Exception as err:
+            message = "Logout failed err={}".format(err)
+            logger.error(message)
+            return HttpResponseBadRequest(message)
 
 
 class JournalAccessViewSet(viewsets.ModelViewSet):

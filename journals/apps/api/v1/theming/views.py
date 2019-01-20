@@ -2,6 +2,7 @@
 from urllib.parse import urlparse
 
 from django_filters.rest_framework import DjangoFilterBackend
+import waffle
 from rest_framework import views, viewsets
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -13,8 +14,10 @@ from journals.apps.core.models import SiteConfiguration, User
 from journals.apps.journals.models import JournalAccess, UserPageVisit
 from journals.apps.journals.utils import get_image_url
 from journals.apps.theming.models import SiteBranding
+from journals.apps.journals.utils import lms_integration_enabled
 
 STANDARD_HTTP_PORTS = [80, 443]
+DISABLE_LMS_WAFFLE_SWITCH = 'disable_lms_integration'
 
 
 class SiteBrandingViewSet(viewsets.ReadOnlyModelViewSet):
@@ -82,4 +85,5 @@ class SiteInformationView(views.APIView):
             'footer_links': footer_links,
             'authorized_journals': authorized_journals,
             'segment_key': segment_key,
+            'lms_integration': lms_integration_enabled(),
         })
